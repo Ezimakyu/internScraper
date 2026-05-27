@@ -1,0 +1,20 @@
+name: internscraper
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - python-jobspy>=1.1.80
+      - playwright>=1.46.0
+      - openai>=1.40.0
+      - pydantic>=2.7.0
+      - pandas>=2.2.0
+      - jinja2>=3.1.0
+      - googlesearch-python>=1.2.5
+      - python-dotenv>=1.0.1
+      - tenacity>=8.2.3
+      - beautifulsoup4>=4.12.3
+      - lxml>=5.2.0
+      - rich>=13.7.0
