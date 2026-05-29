@@ -84,6 +84,8 @@ Common flags:
 | `--skip-jobspy` | off | Skip the big-board path. |
 | `--extra-url URL` | — | Repeatable. Add a custom page to Path B. |
 | `--allow-past` | off | Keep postings the LLM flags as expired. |
+| `--min-date YYYY-MM-DD` | none | Drop postings older than this date. Alias: `--oldest-date`. |
+| `--allow-non-technical` | off | Keep non-engineering roles (marketing, sales, BD, recruiting, etc.). |
 | `--debug` | off | Verbose logging. |
 
 Open the resulting HTML in any browser; check the "Applied" box on a row and
@@ -137,6 +139,17 @@ The pipeline mirrors the four-module breakdown from the spec:
                   ▼
             output/*.html (+ optional CSV)
 ```
+
+### What "technical role" means
+
+By default the LLM classifies each posting and the pipeline drops any role
+flagged `is_technical_role=False`. Kept: SWE, ML/AI, computer vision,
+data science / analytics / engineering, robotics software, embedded /
+firmware, hardware, security, infra / devops / SRE, quant, applied science.
+Dropped: marketing, sales, BD, finance, HR, recruiting, technical writing
+only, customer success, non-technical PM / operations.
+
+If you want to see everything anyway, pass `--allow-non-technical`.
 
 ### Why LLM for parsing only?
 

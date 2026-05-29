@@ -59,6 +59,17 @@ class QueryConfig(BaseModel):
         default=24 * 30, ge=1,
         description="JobSpy 'hours_old' filter; default ~30 days of postings.",
     )
+    min_post_date: Optional[str] = Field(
+        default=None,
+        description="ISO YYYY-MM-DD. Drop postings older than this date. Null = no"
+                    " extra cutoff beyond the hours_old window.",
+    )
+    technical_only: bool = Field(
+        default=True,
+        description="If true, only keep roles that require programming / CS "
+                    "skills (SWE, ML, AI, data, CV, robotics SW, embedded, "
+                    "infra, security). False = keep marketing / sales / BD too.",
+    )
     extra_sites: List[str] = Field(
         default_factory=list,
         description="Extra GitHub / company URLs the user wants Path B to scrape.",
@@ -115,6 +126,14 @@ class ParsedListing(BaseModel):
         ...,
         description="True if the application window has clearly closed or the "
                     "season is in the past relative to today.",
+    )
+    is_technical_role: bool = Field(
+        ...,
+        description="True if the role primarily requires programming / CS / "
+                    "engineering / data / ML / AI / robotics / hardware / "
+                    "security skills. False for pure marketing, sales, BD, "
+                    "finance, HR, recruiting, technical writing, customer "
+                    "success, or non-engineering operations roles.",
     )
     confidence: float = Field(
         default=0.5, ge=0.0, le=1.0,

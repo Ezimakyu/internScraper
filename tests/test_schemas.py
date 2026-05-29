@@ -23,6 +23,7 @@ def test_parsed_listing_required_fields():
         is_undergraduate=True,
         is_usa_based=True,
         is_past_date=False,
+        is_technical_role=True,
     )
     assert p.company == "Acme"
     assert 0.0 <= p.confidence <= 1.0

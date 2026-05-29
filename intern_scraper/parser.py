@@ -51,6 +51,16 @@ For each *distinct* internship/co-op posting in the input, output one row with:
 - is_usa_based: true if the role is in the United States or US-remote
 - is_past_date: true if the role's season/year has clearly passed, or if the
   text explicitly says "closed" / "expired" / "filled" / "no longer accepting"
+- is_technical_role: TRUE if the role primarily requires programming / CS /
+  engineering work. Examples of TRUE: software engineer, ML/AI engineer,
+  computer vision, data scientist/analyst/engineer, robotics software,
+  embedded/firmware, hardware engineer, security/infra/devops/SRE,
+  quantitative researcher/developer, research scientist (CS/ML), applied
+  scientist, full-stack/backend/frontend dev. FALSE for: marketing,
+  sales, business development, finance/accounting, HR, recruiting,
+  customer success, technical writing only, product manager (unless
+  technical PM is explicit), operations, supply chain, consulting
+  (non-technical), program manager. When uncertain, lean TRUE.
 - confidence: 0.0-1.0 self-assessment
 - notes: short rationale (<=120 chars), optional
 
@@ -195,21 +205,44 @@ def filter_listings(
     config: QueryConfig,
     drop_past: bool = True,
 ) -> List[ParsedListing]:
-    """Apply the project's default filters (USA / undergrad / not expired)."""
+    """Apply the project's default filters (USA / undergrad / technical / fresh).
+
+    A listing is dropped if any of these are true:
+    - ``drop_past`` and ``is_past_date``
+    - target is undergraduate and the role isn't undergrad-eligible
+    - location demands USA and the role isn't USA-based
+    - ``config.technical_only`` and the role isn't technical
+    - ``config.min_post_date`` is set and the listing is older
+    - the LLM gave us a post_date > 18 months old (sanity)
+    """
 
     today = date.today()
+    min_cutoff = _try_parse_date(config.min_post_date)
     out: List[ParsedListing] = []
+    drop_reasons = {"past": 0, "grad": 0, "non_usa": 0, "non_tech": 0, "old": 0}
     for li in listings:
         if drop_past and li.is_past_date:
+            drop_reasons["past"] += 1
             continue
         if config.target_level == "undergraduate" and not li.is_undergraduate:
+            drop_reasons["grad"] += 1
             continue
         if "USA" in config.location.upper() and not li.is_usa_based:
+            drop_reasons["non_usa"] += 1
             continue
-        # Sanity: if the LLM gave us a post_date that's > 18 months old, drop it.
+        if config.technical_only and not li.is_technical_role:
+            drop_reasons["non_tech"] += 1
+            continue
         d = _try_parse_date(li.post_date)
         if d is not None and (today - d).days > 540:
+            drop_reasons["old"] += 1
+            continue
+        if min_cutoff is not None and d is not None and d < min_cutoff:
+            drop_reasons["old"] += 1
             continue
         out.append(li)
-    log.info("Kept %d / %d listings after filters.", len(out), len(listings))
+    log.info(
+        "Kept %d / %d listings after filters. Dropped: %s",
+        len(out), len(listings), drop_reasons,
+    )
     return out

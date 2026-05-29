@@ -28,15 +28,25 @@ clearly implies them. The user is searching for tech / software internships \
 unless they say otherwise.
 
 Rules:
-- "role_keywords" should be short job-title phrases the user would actually \
-type into LinkedIn search (e.g. "software engineer intern", "ml intern"). \
-Always include at least one.
+- "role_keywords" should be 2-4 short job-title phrases the user would type \
+into LinkedIn search. Default to a diversified set covering the user's intent: \
+e.g. for a generic SWE intern query include both "software engineer intern" \
+and "machine learning intern" and "data science intern". For an ML-focused \
+query prefer "machine learning intern", "ai research intern", "computer \
+vision intern". For robotics include "robotics software intern" or "perception \
+intern". Always include at least one.
 - "industry_keywords" are domain words (aerospace, defense, fintech, robotics, \
 biotech, gaming, computer vision, etc.). Empty list if none implied.
 - "season" is one of Summer / Fall / Spring / Winter, or null.
 - "year" is a 4-digit int or null.
 - "location" defaults to "USA" unless the user names a region/state/city.
 - "target_level" is "undergraduate" unless the user says otherwise.
+- Leave "results_per_site" and "hours_old" at their defaults (do not lower \
+them) unless the user asks for a smaller / quicker search.
+- Leave "technical_only" at true unless the user explicitly says they want \
+non-technical roles (marketing, sales, etc.).
+- "min_post_date" is null unless the user says something like "posted after \
+May 15" or "only new postings".
 - Do not invent companies or schools.
 """
 
@@ -116,6 +126,13 @@ def parse_query(
             raise RuntimeError("LLM returned no parsed config")
         # Always re-attach the original query.
         cfg.raw_query = raw_query
+        # Don't let the LLM silently shrink the search; reset tuning knobs to
+        # their Pydantic defaults when it lowers them below sensible values.
+        defaults = QueryConfig(raw_query=raw_query)
+        if cfg.results_per_site < defaults.results_per_site:
+            cfg.results_per_site = defaults.results_per_site
+        if cfg.hours_old < defaults.hours_old:
+            cfg.hours_old = defaults.hours_old
         log.debug("Parsed config from LLM: %s", json.dumps(cfg.model_dump(), default=str))
         return cfg
     except Exception as exc:  # noqa: BLE001 - we want a wide net here

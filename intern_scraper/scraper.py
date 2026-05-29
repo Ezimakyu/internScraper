@@ -42,18 +42,27 @@ DEFAULT_GITHUB_SOURCES = [
 # Path A: JobSpy
 # ---------------------------------------------------------------------------
 
-def _jobspy_term(config: QueryConfig) -> str:
-    """Build the search string we feed JobSpy."""
+def _jobspy_terms(config: QueryConfig, max_terms: int = 3) -> List[str]:
+    """Build a *list* of JobSpy search strings - one per role keyword.
 
-    parts: List[str] = []
-    parts.extend(config.role_keywords[:2] or ["software engineer intern"])
+    Running JobSpy once per role keyword gives much broader coverage than a
+    single jumbled query, at the cost of a few extra HTTP calls.
+    """
+
+    roles = config.role_keywords[:max_terms] or ["software engineer intern"]
+    tail_parts: List[str] = []
     if config.industry_keywords:
-        parts.append(" ".join(config.industry_keywords[:3]))
+        tail_parts.append(" ".join(config.industry_keywords[:3]))
     if config.season:
-        parts.append(config.season)
+        tail_parts.append(config.season)
     if config.year:
-        parts.append(str(config.year))
-    return " ".join(parts).strip()
+        tail_parts.append(str(config.year))
+    tail = " ".join(tail_parts).strip()
+
+    terms: List[str] = []
+    for role in roles:
+        terms.append(f"{role} {tail}".strip() if tail else role)
+    return terms
 
 
 def gather_jobspy(config: QueryConfig, sites: Optional[List[str]] = None) -> List[RawListing]:
@@ -70,27 +79,38 @@ def gather_jobspy(config: QueryConfig, sites: Optional[List[str]] = None) -> Lis
         return []
 
     site_name = sites or ["linkedin", "indeed", "glassdoor", "zip_recruiter"]
-    term = _jobspy_term(config)
-    log.info("JobSpy search: term=%r location=%r sites=%s",
-             term, config.location, site_name)
+    terms = _jobspy_terms(config)
+    log.info("JobSpy: %d search terms, location=%r sites=%s",
+             len(terms), config.location, site_name)
 
-    try:
-        df = scrape_jobs(
-            site_name=site_name,
-            search_term=term,
-            location=config.location,
-            results_wanted=config.results_per_site,
-            hours_old=config.hours_old,
-            country_indeed="USA" if "USA" in config.location.upper() else None,
-            linkedin_fetch_description=False,
-            verbose=0,
-        )
-    except Exception as exc:  # noqa: BLE001
-        log.warning("JobSpy call failed: %s", exc)
+    import pandas as pd  # local import keeps top-of-module import cost down
+    frames = []
+    for term in terms:
+        log.info("  JobSpy term: %r", term)
+        try:
+            df = scrape_jobs(
+                site_name=site_name,
+                search_term=term,
+                location=config.location,
+                results_wanted=config.results_per_site,
+                hours_old=config.hours_old,
+                country_indeed="USA" if "USA" in config.location.upper() else None,
+                linkedin_fetch_description=False,
+                verbose=0,
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("JobSpy call failed for %r: %s", term, exc)
+            continue
+        if df is not None and len(df) > 0:
+            frames.append(df)
+
+    if not frames:
         return []
 
-    if df is None or len(df) == 0:
-        return []
+    df = pd.concat(frames, ignore_index=True)
+    # Dedupe rows that came back from multiple search terms.
+    if "job_url" in df.columns:
+        df = df.drop_duplicates(subset=["job_url"], keep="first")
 
     out: List[RawListing] = []
     for _, row in df.iterrows():

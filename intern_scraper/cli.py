@@ -66,6 +66,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Keep postings flagged as past-dated (for archival / debugging).",
     )
     p.add_argument(
+        "--min-date", "--oldest-date", dest="min_date", default=None,
+        help="Drop postings older than this ISO date (YYYY-MM-DD). "
+             "E.g. --min-date 2026-05-15.",
+    )
+    p.add_argument(
+        "--allow-non-technical", action="store_true",
+        help="Keep marketing / sales / BD / recruiting / etc. roles that the "
+             "LLM flags as non-technical (off by default).",
+    )
+    p.add_argument(
         "--debug", action="store_true",
         help="Verbose logging.",
     )
@@ -87,6 +97,10 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     # 1. Parse natural language query.
     config = parse_query(args.query)
+    if args.min_date:
+        config.min_post_date = args.min_date
+    if args.allow_non_technical:
+        config.technical_only = False
     log.info("QueryConfig: %s", config.model_dump())
 
     # 2. Gather.

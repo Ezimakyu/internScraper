@@ -13,6 +13,7 @@ def _make(**kw):
         is_undergraduate=True,
         is_usa_based=True,
         is_past_date=False,
+        is_technical_role=True,
         confidence=0.9,
     )
     base.update(kw)
@@ -26,6 +27,8 @@ def test_filter_drops_past_and_non_us():
         _make(company="Past Co", is_past_date=True),
         _make(company="UK Co", is_usa_based=False, location="London, UK"),
         _make(company="Grad Co", is_undergraduate=False),
+        _make(company="Marketing Co", is_technical_role=False,
+              role_title="Marketing Intern"),
     ]
     out = filter_listings(listings, cfg)
     companies = {x.company for x in out}
@@ -33,6 +36,35 @@ def test_filter_drops_past_and_non_us():
     assert "Past Co" not in companies
     assert "UK Co" not in companies
     assert "Grad Co" not in companies
+    assert "Marketing Co" not in companies
+
+
+def test_filter_respects_min_post_date():
+    cfg = QueryConfig(raw_query="swe internship", min_post_date="2026-05-15")
+    listings = [
+        _make(company="NewCo", post_date="2026-05-20"),
+        _make(company="OldCo", post_date="2026-05-01"),
+        _make(company="NoDateCo", post_date=None),
+    ]
+    out = filter_listings(listings, cfg)
+    names = {x.company for x in out}
+    assert "NewCo" in names
+    assert "OldCo" not in names
+    # Listings without a parseable date are kept (we err on the side of
+    # surfacing more results, per the spec).
+    assert "NoDateCo" in names
+
+
+def test_filter_keeps_non_technical_when_allowed():
+    cfg = QueryConfig(raw_query="any internship", technical_only=False)
+    listings = [
+        _make(company="SWE Co"),
+        _make(company="Marketing Co", is_technical_role=False,
+              role_title="Marketing Intern"),
+    ]
+    out = filter_listings(listings, cfg)
+    names = {x.company for x in out}
+    assert {"SWE Co", "Marketing Co"}.issubset(names)
 
 
 def test_to_dataframe_dedupes_and_sorts():
